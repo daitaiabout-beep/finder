@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>FINDER - Standard</title>
+    <style>
+        :root { 
+            --ui-color: rgba(255, 255, 255, 0.9);
+        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+
+        /* ── 背景スライドコンテナ ── */
+        #stage {
+            display: flex;
+            height: 100%; width: 100%;
+            will-change: transform;
+        }
+
+        /* スロット（左・中・右 の3枚固定） */
+        .video-slot {
+            position: relative;
+            width: 100vw; height: 100%; flex-shrink: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        /* video を cover 表示 */
+        .video-slot video {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 100%; min-height: 100%;
+            width: auto; height: auto;
+            object-fit: cover;
+        }
+
+        /* ── UIレイヤー（ファインダー枠） ── */
+        #ui-overlay {
+            position: absolute; inset: 0;
+            border: 15px solid #000;
+            pointer-events: none; z-index: 100;
+        }
+        .corner {
+            position: absolute; width: 30px; height: 30px;
+            border: 1px solid var(--ui-color);
+        }
+        .top-left    { top: 40px;    left: 40px;  border-right: none; border-bottom: none; }
+        .top-right   { top: 40px;    right: 40px; border-left: none;  border-bottom: none; }
+        .bottom-left { bottom: 40px; left: 40px;  border-right: none; border-top: none; }
+        .bottom-right{ bottom: 40px; right: 40px; border-left: none;  border-top: none; }
+
+        /* ── ナビゲーションボタン ── */
+        .nav-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--ui-color);
+            font-size: 40px; cursor: pointer; z-index: 200;
+            padding: 20px; transition: opacity 0.2s;
+        }
+        .nav-btn:hover { opacity: 0.6; }
+        .prev { left: 20px; }
+        .next { right: 20px; }
+
+        /* ── 撮影ボタン ── */
+        #shutter-btn {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 4px solid var(--ui-color);
+            background: transparent; cursor: pointer; z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #shutter-btn::after {
+            content: ''; width: 60px; height: 60px; border-radius: 50%;
+            background: var(--ui-color); opacity: 0.3; transition: 0.15s;
+        }
+        #shutter-btn:active::after { transform: scale(0.9); opacity: 0.8; }
+
+        /* ── 演出・ポップアップ ── */
+        #flash {
+            position: absolute; inset: 0; background: #fff;
+            opacity: 0; pointer-events: none; z-index: 500;
+            transition: opacity 0.08s;
+        }
+        #popup {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.98);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        #card { width: 90%; max-width: 800px; background: #000; }
+
+        /* ── キャプション ── */
+        #caption {
+            position: absolute;
+            bottom: 150px; left: 0; right: 0;
+            text-align: center;
+            pointer-events: none; z-index: 150;
+            transition: opacity 0.35s ease;
+        }
+        #caption-name {
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 5px;
+        }
+        #caption-text {
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            color: rgba(255,255,255,0.92);
+            text-shadow: 0 1px 10px rgba(0,0,0,0.75);
+        }
+        #caption.hidden { opacity: 0; }
+    </style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<div id="stage"></div>
+
+<div id="ui-overlay">
+    <div class="corner top-left"></div>
+    <div class="corner top-right"></div>
+    <div class="corner bottom-left"></div>
+    <div class="corner bottom-right"></div>
+</div>
+
+<button class="nav-btn prev" onclick="app.move(-1)">＜</button>
+<button class="nav-btn next" onclick="app.move(1)">＞</button>
+
+<div id="shutter-btn" onclick="app.capture()"></div>
+
+<div id="caption">
+    <div id="caption-name"></div>
+    <div id="caption-text"></div>
+</div>
+
+<div id="popup" onclick="app.close()">
+    <div id="card" onclick="event.stopPropagation()">
+        <div id="video-container" style="width:100%; aspect-ratio:16/9;"></div>
+        <div style="padding:30px; color:#fff; text-align:center;">
+            <div id="p-name" style="font-size:1.4rem; letter-spacing:0.1em;"></div>
+            <div id="p-desc" style="font-size:0.9rem; color:#888; margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const spots = [
+    // ★ video: に mp4 ファイル名を入れてください（HTMLと同じフォルダに置く）
+    { name: "SIGHT 01", video: "scene01.MP4", vId: "kTgRkGkTw74", desc: "ここに説明文を入れてください。",
+      caption: { speaker: "霧子", line: "こんにちは…ここで、会えましたね。" } },
+    { name: "SIGHT 02", video: "scene02.mp4", vId: "U3c24lYxDxs", desc: "その写真に込めた想いや、場所の記憶を記述します。",
+      caption: { speaker: "夏目", line: "この景色、何回見ても飽きないな。" } },
+    { name: "SIGHT 03", video: "scene03.mp4", vId: "lBkcJVf56WQ", desc: "「撮る」という体験が、ここで完結します。",
+      caption: { speaker: "晴香", line: "…撮ってくれるんですか？" } }
+];
+
+// ── スリングショット遷移パラメータ ──
+const PULLBACK   = 2.5;   // 逆方向への引き量（vw）
+const PULLBACK_T = 90;    // 引きのduration (ms)
+const PAN_T      = 160;   // 高速パンのduration (ms)
+const SETTLE_T   = 120;   // 着地・微バウンスのduration (ms)
+const BOUNCE     = 0.8;   // 着地後のオーバーシュート量（vw）
+
+class StandardApp {
+    constructor() {
+        this.index = 0;
+        this.isMoving = false;
+        this.visitedIndices = new Set([0]); // 既出スライドを記録
+        this.init();
+    }
+
+    init() {
+        const stage = document.getElementById('stage');
+        // スロットは左・中・右 の3枚固定（中が現在表示）
+        for (let i = 0; i < 3; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'video-slot';
+            const vid = document.createElement('video');
+            vid.autoplay = true;
+            vid.loop = true;
+            vid.muted = true;
+            vid.playsInline = true;
+            vid.src = spots[0].video; // 初期は全スロットに最初の動画を仮セット
+            slot.appendChild(vid);
+            stage.appendChild(slot);
+        }
+        // 中スロット（インデックス1）だけ正式に再生
+        this._playSlot(1, 0);
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' || e.key === 'd') this.move(1);
+            if (e.key === 'ArrowLeft'  || e.key === 'a') this.move(-1);
+            if (e.key === ' ') { e.preventDefault(); this.capture(); }
+        });
+    }
+
+    // ── 現在以外からランダムに1枚選ぶ（未訪問優先） ──
+    pickRandom() {
+        const unvisited = spots
+            .map((_, i) => i)
+            .filter(i => i !== this.index && !this.visitedIndices.has(i));
+        if (unvisited.length > 0) {
+            return unvisited[Math.floor(Math.random() * unvisited.length)];
+        }
+        // 全部見たらリセット
+        this.visitedIndices.clear();
+        this.visitedIndices.add(this.index);
+        const others = spots.map((_, i) => i).filter(i => i !== this.index);
+        return others[Math.floor(Math.random() * others.length)];
+    }
+
+    // ── スリングショット遷移 ──
+    async move(dir) {
+        if (this.isMoving) return;
+        this.isMoving = true;
+
+        const stage = document.getElementById('stage');
+        const slides = stage.querySelectorAll('.photo-section');
+
+        // 「進む先のスロット」= 現在スロットの隣（dir方向）
+        // スロットは 0,1,2 の3枚で固定。現在は常にスロット1に居座る設計にする。
+        // → 毎回「スロット1が現在、スロット(1+dir)が次」として差し替える。
+
+        const CUR  = 1;           // 現在は常にスロット1
+        const NEXT = 1 + dir;     // 0 or 2
+
+        // 次スロットに今回表示する画像をセット
+        const nextSpotIdx = this.pickRandom();
+        this._loadSlot(NEXT, nextSpotIdx);
+
+        // 現在スロット(1)に合わせてステージをリセット（transition無し）
+        this._setTransition(stage, 'none');
+        stage.style.transform = `translateX(${-CUR * 100}vw)`;
+
+        // 1フレーム待ってtransitionリセットを確定させる
+        await this._wait(16);
+
+        const currentX = -CUR * 100;
+        const targetX  = -NEXT * 100;
+
+        // ─ フェーズ1: 逆方向に引く ─
+        this._setTransition(stage, `transform ${PULLBACK_T}ms cubic-bezier(0.25, 0, 0.5, 1)`);
+        stage.style.transform = `translateX(${currentX + dir * -PULLBACK}vw)`;
+        this._setCaption(false); // パン中は非表示
+        await this._wait(PULLBACK_T);
+
+        // ─ フェーズ2: 高速パン ─
+        this._setTransition(stage, `transform ${PAN_T}ms cubic-bezier(0.4, 0, 1, 1)`);
+        stage.style.transform = `translateX(${targetX - dir * BOUNCE}vw)`;
+        await this._wait(PAN_T);
+
+        // ─ フェーズ3: 着地バウンス ─
+        this._setTransition(stage, `transform ${SETTLE_T}ms cubic-bezier(0.2, 0.8, 0.4, 1)`);
+        stage.style.transform = `translateX(${targetX}vw)`;
+        await this._wait(SETTLE_T);
+
+        // ── 着地後: 現在スロットを次の画像に差し替えてスロット1に戻す ──
+        this._setTransition(stage, 'none');
+        this._playSlot(CUR, nextSpotIdx);
+        stage.style.transform = `translateX(${-CUR * 100}vw)`;
+
+        this.index = nextSpotIdx;
+        this.visitedIndices.add(nextSpotIdx);
+        this._updateCaption(nextSpotIdx); // キャプション更新
+        this._setCaption(true);           // フェードイン
+        this.isMoving = false;
+    }
+
+    capture() {
+        if (this.isMoving || document.getElementById('popup').style.display === 'flex') return;
+        const flash = document.getElementById('flash');
+        flash.style.opacity = 1;
+        setTimeout(() => {
+            flash.style.opacity = 0;
+            this.open();
+        }, 100);
+    }
+
+    open() {
+        const s = spots[this.index];
+        document.getElementById('p-name').innerText   = s.name;
+        document.getElementById('p-desc').innerText   = s.desc;
+        document.getElementById('video-container').innerHTML =
+            `<iframe width="100%" height="100%"
+                src="https://www.youtube.com/embed/${s.vId}?autoplay=1"
+                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        document.getElementById('popup').style.display = 'flex';
+    }
+
+    close() {
+        document.getElementById('popup').style.display = 'none';
+        document.getElementById('video-container').innerHTML = '';
+    }
+
+    // ── ユーティリティ ──
+    _setTransition(el, val) { el.style.transition = val; }
+    _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // スロットに動画をセットして再生（着地後に呼ぶ）
+    _playSlot(slotIdx, spotIdx) {
+        const slots = document.querySelectorAll('.video-slot');
+        const vid = slots[slotIdx].querySelector('video');
+        vid.src = spots[spotIdx].video;
+        vid.load();
+        vid.play().catch(() => {});
+    }
+
+    // スロットに動画をセットするだけ（パン前のプリロード）
+    _loadSlot(slotIdx, spotIdx) {
+        const slots = document.querySelectorAll('.video-slot');
+        const vid = slots[slotIdx].querySelector('video');
+        vid.src = spots[spotIdx].video;
+        vid.load();
+        // パン中は再生しておく（着地時にすでに動いている状態にする）
+        vid.play().catch(() => {});
+    }
+
+    _updateCaption(spotIdx) {
+        const c = spots[spotIdx].caption;
+        document.getElementById('caption-name').textContent = c ? c.speaker : '';
+        document.getElementById('caption-text').textContent = c ? c.line    : '';
+    }
+    _setCaption(visible) {
+        document.getElementById('caption').classList.toggle('hidden', !visible);
+    }
+}
+
+const app = new StandardApp();
+// 初期キャプション表示
+app._updateCaption(0);
+app._setCaption(true);
+</script>
+</body>
+</html>
