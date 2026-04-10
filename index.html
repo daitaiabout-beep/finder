@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="referrer" content="strict-origin-when-cross-origin"> 
     <title>FINDER - Standard</title>
     <style>
         :root { 
@@ -37,39 +38,189 @@
         /* ── UIレイヤー（ファインダー枠） ── */
         #ui-overlay {
             position: absolute; inset: 0;
-            border: 15px solid #000;
             pointer-events: none; z-index: 100;
         }
-        /* corner は下部で再定義 */
-        .top-left    { top: 40px;    left: 40px;  border-right: none; border-bottom: none; }
-        .top-right   { top: 40px;    right: 40px; border-left: none;  border-bottom: none; }
-        .bottom-left { bottom: 40px; left: 40px;  border-right: none; border-top: none; }
-        .bottom-right{ bottom: 40px; right: 40px; border-left: none;  border-top: none; }
+
+        /* 上バー：カメラ情報HUD */
+        #hud-top {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 52px;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center;
+            padding: 0 20px;
+            gap: 0;
+            pointer-events: none;
+        }
+        #hud-top .hud-left {
+            display: flex; align-items: center; gap: 14px;
+            flex: 1;
+        }
+        #hud-top .hud-center {
+            flex: 1; text-align: center;
+        }
+        #hud-top .hud-right {
+            display: flex; align-items: center; gap: 14px;
+            flex: 1; justify-content: flex-end;
+        }
+        .hud-val {
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.75);
+            font-family: monospace;
+        }
+        .hud-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.15em;
+            color: rgba(255,255,255,0.38);
+            display: block;
+            margin-bottom: 1px;
+        }
+        .hud-item { text-align: center; }
+        .hud-rec {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 0.68rem; letter-spacing: 0.15em;
+            color: rgba(255,255,255,0.7);
+        }
+        .hud-rec-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #e05540;
+            box-shadow: 0 0 6px #e05540;
+            animation: recdot 1.8s ease-in-out infinite;
+        }
+        @keyframes recdot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+        /* 下バー：シャッター・情報 */
+        #hud-bottom {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 80px;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center;
+            padding: 0 30px;
+            pointer-events: none;
+        }
+        #hud-bottom .hud-left  { flex: 1; display: flex; align-items: center; gap: 14px; }
+        #hud-bottom .hud-right { flex: 1; display: flex; align-items: center; gap: 14px; justify-content: flex-end; }
+
+        /* 露出インジケーター */
+        #exposure-bar {
+            width: 80px; height: 3px;
+            background: rgba(255,255,255,0.15);
+            position: relative;
+        }
+        #exposure-bar::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 0;
+            width: 2px; height: 100%;
+            background: rgba(255,255,255,0.8);
+            transform: translateX(-50%);
+        }
+
+        /* バッテリー */
+        #battery {
+            display: flex; align-items: center; gap: 3px;
+        }
+        .battery-bar {
+            width: 22px; height: 10px;
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+        .battery-bar::before {
+            content: '';
+            position: absolute;
+            left: 1px; top: 1px; bottom: 1px;
+            width: 75%;
+            background: rgba(255,255,255,0.7);
+            border-radius: 1px;
+        }
+        .battery-bar::after {
+            content: '';
+            position: absolute;
+            right: -4px; top: 50%;
+            transform: translateY(-50%);
+            width: 3px; height: 5px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 0 1px 1px 0;
+        }
+
+        /* ファインダー四隅のブラケット */
+        .corner {
+            position: absolute; width: 56px; height: 56px;
+            border: 3px solid rgba(255,255,255,0.88);
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.45));
+        }
+        .top-left    { top: 52px;  left: 0;  border-right: none; border-bottom: none; }
+        .top-right   { top: 52px;  right: 0; border-left: none;  border-bottom: none; }
+        .bottom-left { bottom: 80px; left: 0;  border-right: none; border-top: none; }
+        .bottom-right{ bottom: 80px; right: 0; border-left: none;  border-top: none; }
+
+        /* 十字クロス */
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px; height: 32px;
+            pointer-events: none;
+        }
+        #crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 0; right: 0; height: 1px;
+            background: rgba(255,255,255,0.55);
+            transform: translateY(-50%);
+        }
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 0; bottom: 0; width: 1px;
+            background: rgba(255,255,255,0.55);
+            transform: translateX(-50%);
+        }
+
+        /* ヴィネット */
+        #vignette {
+            position: absolute; inset: 0;
+            background: radial-gradient(ellipse at center,
+                transparent 55%,
+                rgba(0,0,0,0.45) 100%);
+            pointer-events: none;
+        }
 
         /* ── ナビゲーションボタン ── */
         .nav-btn {
             position: absolute; top: 50%; transform: translateY(-50%);
-            background: none; border: none; color: var(--ui-color);
-            font-size: 40px; cursor: pointer; z-index: 200;
-            padding: 20px; transition: opacity 0.2s;
+            background: none; border: none;
+            color: rgba(255,255,255,0.3);
+            font-size: 32px; cursor: pointer; z-index: 200;
+            padding: 20px; transition: color 0.2s;
+            letter-spacing: 0;
         }
-        .nav-btn:hover { opacity: 0.6; }
-        .prev { left: 20px; }
-        .next { right: 20px; }
+        .nav-btn:hover { color: rgba(255,255,255,0.7); }
+        .prev { left: 4px; }
+        .next { right: 4px; }
 
-        /* ── 撮影ボタン ── */
+        /* ── 撮影ボタン（下バー中央） ── */
         #shutter-btn {
-            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-            width: 80px; height: 80px; border-radius: 50%;
-            border: 4px solid var(--ui-color);
-            background: transparent; cursor: pointer; z-index: 200;
+            position: absolute;
+            bottom: 14px; left: 50%; transform: translateX(-50%);
+            width: 52px; height: 52px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.08);
+            cursor: pointer; z-index: 200;
             display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s, border-color 0.15s;
         }
         #shutter-btn::after {
-            content: ''; width: 60px; height: 60px; border-radius: 50%;
-            background: var(--ui-color); opacity: 0.3; transition: 0.15s;
+            content: ''; width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(255,255,255,0.18);
+            transition: 0.15s;
         }
-        #shutter-btn:active::after { transform: scale(0.9); opacity: 0.8; }
+        #shutter-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.8); }
+        #shutter-btn:active::after { background: rgba(255,255,255,0.55); }
 
         /* ── 演出・ポップアップ ── */
         #flash {
@@ -87,17 +238,17 @@
         /* ── キャプション ── */
         #caption {
             position: absolute;
-            bottom: 120px; left: 0; right: 0;
+            bottom: 90px; left: 0; right: 0;
             text-align: center;
             pointer-events: none; z-index: 150;
-            transition: opacity 0.35s ease;
+            transition: opacity 0.00s ease;
         }
         #caption-inner {
             display: inline-block;
             width: 100%;
             padding: 18px 40px;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(8px);
+            /*background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);*/
             -webkit-backdrop-filter: blur(8px);
         }
         #caption-name {
@@ -114,12 +265,7 @@
         }
         #caption.hidden { opacity: 0; }
 
-        /* ── ファインダー枠 強調 ── */
-        .corner {
-            position: absolute; width: 40px; height: 40px;
-            border: 2px solid rgba(255,255,255,0.9);
-            filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
-        }
+
 
         /* ── タイトル画面 ── */
         #title-screen {
@@ -162,7 +308,7 @@
             color: #fff;
         }
         #title-pc-note {
-            font-size: 0.68rem;
+            font-size: 0.88rem;
             letter-spacing: 0.12em;
             color: rgba(255,255,255,0.25);
             text-align: center;
@@ -237,14 +383,15 @@
         /* ── キーボードヒント ── */
         #kb-hint {
             position: absolute;
-            bottom: 20px; right: 20px;
-            font-size: 0.62rem;
-            letter-spacing: 0.12em;
-            color: rgba(255,255,255,0.2);
+            bottom: 28px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.6rem;
+            letter-spacing: 0.18em;
+            color: rgba(255,255,255,0.22);
             pointer-events: none;
-            z-index: 150;
-            line-height: 1.8;
-            text-align: right;
+            z-index: 201;
+            text-align: center;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -256,10 +403,10 @@
 <div id="title-screen">
     <div id="title-logo">嘘シャニマス聖地</div>
     <div id="title-sub">
-        ファインダーを覗いて、彼女たちを探そう。<br>
-        見つけたら、シャッターを切る。
+        シャッターを切って、<br>
+        彼女たちの物語を見つけよう。
     </div>
-    <button id="title-start" onclick="startGame()">FINDER を起動する</button>
+    <button id="title-start" onclick="startGame()">フォトモードを起動する</button>
     <div id="title-pc-note">
         PC推奨 / 横向き推奨<br>
         Space: 撮影 &nbsp; ← →: 移動
@@ -270,10 +417,79 @@
 <div id="detect-layer" style="position:absolute;inset:0;pointer-events:none;z-index:140;"></div>
 
 <div id="ui-overlay">
+
+    <!-- ヴィネット -->
+    <div id="vignette"></div>
+
+    <!-- 十字クロス -->
+    <div id="crosshair"></div>
+
+    <!-- 四隅ブラケット -->
     <div class="corner top-left"></div>
     <div class="corner top-right"></div>
     <div class="corner bottom-left"></div>
     <div class="corner bottom-right"></div>
+
+    <!-- 上部HUD -->
+    <div id="hud-top">
+        <div class="hud-left">
+            <div class="hud-rec">
+                <div class="hud-rec-dot"></div>
+                REC
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">SHUTTER</span>
+                <span class="hud-val">1/250</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">ISO</span>
+                <span class="hud-val">400</span>
+            </div>
+        </div>
+        <div class="hud-center">
+            <div class="hud-item">
+                <span class="hud-label">LENS</span>
+                <span class="hud-val">  35mm  f/4.5</span>
+            </div>
+        </div>
+        <div class="hud-right">
+            <div id="battery">
+                <div class="battery-bar"></div>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">MODE</span>
+                <span class="hud-val">A</span>
+            </div>
+            <div class="hud-item" id="hud-time">
+                <span class="hud-label">TIME</span>
+                <span class="hud-val" id="hud-time-val">--:--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下部HUD -->
+    <div id="hud-bottom">
+        <div class="hud-left">
+            <div class="hud-item">
+                <span class="hud-label">EV</span>
+                <div id="exposure-bar"></div>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">WB</span>
+                <span class="hud-val">AWB</span>
+            </div>
+        </div>
+        <div class="hud-right">
+            <div class="hud-item">
+                <span class="hud-label">FORMAT</span>
+                <span class="hud-val">RAW+J</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">CARD</span>
+                <span class="hud-val" id="hud-shots">-- shots</span>
+            </div>
+        </div>
+    </div>
 </div>
 
 <button class="nav-btn prev" onclick="app.move(-1)">＜</button>
@@ -288,10 +504,7 @@
     </div>
 </div>
 
-<div id="kb-hint">
-    Space : 撮影<br>
-    ← → : 移動
-</div>
+<div id="kb-hint">Space : 撮影 &nbsp;|&nbsp; ← → : 移動</div>
 
 <div id="popup" onclick="app.close()">
     <div id="card" onclick="event.stopPropagation()">
@@ -299,6 +512,13 @@
         <div style="padding:30px; color:#fff; text-align:center;">
             <div id="p-name" style="font-size:1.4rem; letter-spacing:0.1em;"></div>
             <div id="p-desc" style="font-size:0.9rem; color:#888; margin-top:10px;"></div>
+        </div>
+        <div style="text-align:center; padding-bottom:24px;">
+        <button onclick="app.close()" style="
+            background:none; border:1px solid rgba(255,255,255,0.4);
+            color:rgba(255,255,255,0.7); font-size:0.8rem;
+            letter-spacing:0.2em; padding:10px 40px; cursor:pointer;
+        ">閉じる</button>
         </div>
     </div>
 </div>
@@ -308,15 +528,15 @@ const spots = [
     // ★ video: mp4ファイル名
     // ★ detect: 認識ボックスの位置とセリフ
     //    left/top: 画面左上からの位置(%)  width/height: サイズ(%)
-    { name: "SIGHT 01", video: "scene02.mov", vId: "kTgRkGkTw74", desc: "ここに説明文を入れてください。",
-      caption: { speaker: "霧子", line: "こんにちは…また、会えたね" },
-      detect: { left: 28, top: 48, width: 20, height: 78, speaker: "霧子", line: "こんにちは…また、会えたね" , color: "#d9f2ff"} },
-    { name: "SIGHT 02", video: "scene03.mov", vId: "U3c24lYxDxs", desc: "その写真に込めた想いや、場所の記憶を記述します。",
-      caption: { speaker: "夏葉", line: "あら、いい眺めじゃない!" },
-      detect: { left: 55, top: 40, width: 18, height: 60, speaker: "夏葉", line: "あら、いい眺めじゃない!" , color: "#90e667"} },
-    { name: "SIGHT 03", video: "scene04.mov", vId: "lBkcJVf56WQ", desc: "「撮る」という体験が、ここで完結します。",
-      caption: { speaker: "めぐる", line: "深呼吸、深呼吸!" },
-      detect: { left: 42, top: 50, width: 12, height: 55, speaker: "めぐる", line: "深呼吸、深呼吸!" , color: "#ffe012"} },
+    { name: "『ここは確か、霧子と出会った...。』", video: "scene02.mov", vId: "kTgRkGkTw74", desc: "yuukoku_Pの作品。", 
+      /*caption: { speaker: "霧子", line: "こんにちは…また、会えたね" },*/
+      detect: { left: 28, top: 48, width: 20, height: 78, speaker: "幽谷霧子", line: "こんにちは…また、会えたね" , color: "#d9f2ff"} },
+    { name: "『放クラのみんなに見せてあげたいわ！』", video: "scene03.mov", vId: "U3c24lYxDxs", desc: "ナッツPの作品。", 
+      /*caption: { speaker: "夏葉", line: "あら、いい眺めじゃない!" },*/
+      detect: { left: 55, top: 40, width: 18, height: 60, speaker: "有栖川夏葉", line: "あら、いい眺めじゃない!" , color: "#90e667"} },
+    { name: "『めぐりめぐるる』", video: "scene04.mov", vId: "lBkcJVf56WQ", desc: "はちみーの作品", 
+      /*caption: { speaker: "めぐる", line: "深呼吸、深呼吸!" },*/
+      detect: { left: 30, top: 38, width: 7, height: 30, speaker: "八宮めぐる", line: "深呼吸、深呼吸!" , color: "#ffe012"} },
 ];
 
 // ── スリングショット遷移パラメータ ──
@@ -356,6 +576,7 @@ class StandardApp {
             if (e.key === 'ArrowRight' || e.key === 'd') this.move(1);
             if (e.key === 'ArrowLeft'  || e.key === 'a') this.move(-1);
             if (e.key === ' ') { e.preventDefault(); this.capture(); }
+             if (e.key === 'Escape') this.close();
         });
     }
 
@@ -449,7 +670,7 @@ class StandardApp {
         document.getElementById('p-desc').innerText   = s.desc;
         document.getElementById('video-container').innerHTML =
             `<iframe width="100%" height="100%"
-                src="https://www.youtube.com/embed/${s.vId}?autoplay=1"
+                src="https://www.youtube.com/embed/${s.vId}?autoplay=1&origin=${location.origin}"
                 frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
         document.getElementById('popup').style.display = 'flex';
     }
@@ -491,7 +712,9 @@ class StandardApp {
     _showDetect(spotIdx) {
         const layer = document.getElementById('detect-layer');
         layer.innerHTML = '';
-        const d = spots[spotIdx].detect;
+        
+        const s = spots[spotIdx]; 
+        const d = s.detect;
         if (!d) return;
 
         const box = document.createElement('div');
@@ -505,9 +728,9 @@ class StandardApp {
         box.style.borderColor = c;
         box.style.boxShadow = `0 0 0 1px ${c}30, inset 0 0 0 1px ${c}15`;
 
-
-        // 四隅
+        // テンプレートリテラル（バッククォート）でHTMLを構築
         box.innerHTML = `
+            <img src="${s.image}" style="position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:500%; height:auto; pointer-events:none; z-index:-1; left:-30%; bottom:-120%;">
             <span class="corner-tr"></span>
             <span class="corner-bl"></span>
             <div class="scan-line"></div>
@@ -515,7 +738,6 @@ class StandardApp {
         `;
         layer.appendChild(box);
 
-        // フェードイン
         requestAnimationFrame(() => {
             requestAnimationFrame(() => { box.classList.add('visible'); });
         });
@@ -526,8 +748,10 @@ class StandardApp {
         const box = layer.querySelector('.detect-box');
         if (box) box.classList.remove('visible');
     }
+
     _setCaption(visible) {
-        document.getElementById('caption').classList.toggle('hidden', !visible);
+        const caption = document.getElementById('caption');
+        if (caption) caption.classList.toggle('hidden', !visible);
     }
 }
 
@@ -535,6 +759,16 @@ const app = new StandardApp();
 app._updateCaption(0);
 app._setCaption(true);
 app._showDetect(0);
+
+// 時計更新
+function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2,'0');
+    const m = String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('hud-time-val').textContent = h + ':' + m;
+}
+updateClock();
+setInterval(updateClock, 10000);
 
 function startGame() {
     const title = document.getElementById('title-screen');
