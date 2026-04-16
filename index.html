@@ -1,0 +1,1037 @@
+<!DOCTYPE html> /* */
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="strict-origin-when-cross-origin"> 
+    <title>FINDER - Standard</title>
+    <style> /* ver.0414*/
+        :root { 
+            --ui-color: rgba(255, 255, 255, 0.9);
+        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+
+        /* ── 背景スライドコンテナ ── */
+        #stage {
+            display: flex;
+            height: 100%; width: 100%;
+            will-change: transform;
+        }
+
+        /* スロット（左・中・右 の3枚固定） */
+        .video-slot {
+            position: relative;
+            width: 100vw; height: 100%; flex-shrink: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        /* video を cover 表示 */
+        .video-slot video {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 100%; min-height: 100%;
+            width: auto; height: auto;
+            object-fit: cover;
+        }
+
+        /* ── UIレイヤー（ファインダー枠） ── */
+        #ui-overlay {
+            position: absolute; inset: 0;
+            pointer-events: none; z-index: 100;
+        }
+
+        /* 上バー：カメラ情報HUD */
+        #hud-top {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 52px;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center;
+            padding: 0 20px;
+            gap: 0;
+            pointer-events: none;
+        }
+        #hud-top .hud-left {
+            display: flex; align-items: center; gap: 14px;
+            flex: 1;
+        }
+        #hud-top .hud-center {
+            flex: 1; text-align: center;
+        }
+        #hud-top .hud-right {
+            display: flex; align-items: center; gap: 14px;
+            flex: 1; justify-content: flex-end;
+        }
+        .hud-val {
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.75);
+            font-family: monospace;
+        }
+        .hud-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.15em;
+            color: rgba(255,255,255,0.38);
+            display: block;
+            margin-bottom: 1px;
+        }
+        .hud-item { text-align: center; }
+        .hud-rec {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 0.68rem; letter-spacing: 0.15em;
+            color: rgba(255,255,255,0.7);
+        }
+        .hud-rec-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #e05540;
+            box-shadow: 0 0 6px #e05540;
+            animation: recdot 1.8s ease-in-out infinite;
+        }
+        @keyframes recdot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+        /* 下バー：シャッター・情報 */
+        #hud-bottom {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 80px;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center;
+            padding: 0 30px;
+            pointer-events: none;
+        }
+        #hud-bottom .hud-left  { flex: 1; display: flex; align-items: center; gap: 14px; }
+        #hud-bottom .hud-right { flex: 1; display: flex; align-items: center; gap: 14px; justify-content: flex-end; }
+
+        /* 露出インジケーター */
+        #exposure-bar {
+            width: 80px; height: 3px;
+            background: rgba(255,255,255,0.15);
+            position: relative;
+        }
+        #exposure-bar::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 0;
+            width: 2px; height: 100%;
+            background: rgba(255,255,255,0.8);
+            transform: translateX(-50%);
+        }
+
+        /* バッテリー */
+        #battery {
+            display: flex; align-items: center; gap: 3px;
+        }
+        .battery-bar {
+            width: 22px; height: 10px;
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+        .battery-bar::before {
+            content: '';
+            position: absolute;
+            left: 1px; top: 1px; bottom: 1px;
+            width: 75%;
+            background: rgba(255,255,255,0.7);
+            border-radius: 1px;
+        }
+        .battery-bar::after {
+            content: '';
+            position: absolute;
+            right: -4px; top: 50%;
+            transform: translateY(-50%);
+            width: 3px; height: 5px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 0 1px 1px 0;
+        }
+
+        /* ファインダー四隅のブラケット */
+        .corner {
+            position: absolute; width: 56px; height: 56px;
+            border: 3px solid rgba(255,255,255,0.88);
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.45));
+        }
+        .top-left    { top: 52px;  left: 0;  border-right: none; border-bottom: none; }
+        .top-right   { top: 52px;  right: 0; border-left: none;  border-bottom: none; }
+        .bottom-left { bottom: 80px; left: 0;  border-right: none; border-top: none; }
+        .bottom-right{ bottom: 80px; right: 0; border-left: none;  border-top: none; }
+
+        /* 十字クロス */
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px; height: 32px;
+            pointer-events: none;
+        }
+        #crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 0; right: 0; height: 1px;
+            background: rgba(255,255,255,0.55);
+            transform: translateY(-50%);
+        }
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 0; bottom: 0; width: 1px;
+            background: rgba(255,255,255,0.55);
+            transform: translateX(-50%);
+        }
+
+        /* ヴィネット */
+        #vignette {
+            position: absolute; inset: 0;
+            background: radial-gradient(ellipse at center,
+                transparent 55%,
+                rgba(0,0,0,0.45) 100%);
+            pointer-events: none;
+        }
+
+        /* ── ナビゲーションボタン ── */
+        .nav-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: none; border: none;
+            color: rgba(255,255,255,0.3);
+            font-size: 32px; cursor: pointer; z-index: 200;
+            padding: 20px; transition: color 0.2s;
+            letter-spacing: 0;
+        }
+        .nav-btn:hover { color: rgba(255,255,255,0.7); }
+        .prev { left: 4px; }
+        .next { right: 4px; }
+
+        /* ── 撮影ボタン（下バー中央） ── */
+        #shutter-btn {
+            position: absolute;
+            bottom: 14px; left: 50%; transform: translateX(-50%);
+            width: 52px; height: 52px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.08);
+            cursor: pointer; z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        #shutter-btn::after {
+            content: ''; width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(255,255,255,0.18);
+            transition: 0.15s;
+        }
+        #shutter-btn:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.8); }
+        #shutter-btn:active::after { background: rgba(255,255,255,0.55); }
+
+        /* ── 演出・ポップアップ ── */
+        #flash {
+            position: absolute; inset: 0; background: #fff;
+            opacity: 0; pointer-events: none; z-index: 500;
+            transition: opacity 0.08s;
+        }
+        #popup {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.98);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        #card { width: 90%; max-width: 800px; background: #000; }
+
+        /* ── キャプション ── */
+        #caption {
+            position: absolute;
+            bottom: 90px; left: 0; right: 0;
+            text-align: center;
+            pointer-events: none; z-index: 150;
+            transition: opacity 0.00s ease;
+        }
+        #caption-inner {
+            display: inline-block;
+            width: 100%;
+            padding: 18px 40px;
+            /*background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);*/
+            -webkit-backdrop-filter: blur(8px);
+        }
+        #caption-name {
+            font-size: 0.85rem;
+            letter-spacing: 0.22em;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 8px;
+        }
+        #caption-text {
+            font-size: 1.3rem;
+            letter-spacing: 0.08em;
+            color: rgba(255,255,255,0.95);
+            text-shadow: 0 1px 12px rgba(0,0,0,0.5);
+        }
+        #caption.hidden { opacity: 0; }
+
+
+
+        /* ── タイトル画面 ── */
+        #title-screen {
+            position: absolute; inset: 0;
+            background: #000;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 24px;
+            z-index: 900;
+            transition: opacity 0.8s ease;
+        }
+        #title-screen.fade-out { opacity: 0; pointer-events: none; }
+        #title-screen.hidden { display: none; }
+        #title-logo {
+            font-size: 2.2rem;
+            letter-spacing: 0.3em;
+            color: rgba(255,255,255,0.92);
+            font-weight: normal;
+        }
+        #title-sub {
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.4);
+            text-align: center;
+            line-height: 2;
+        }
+        #title-start {
+            margin-top: 16px;
+            background: none;
+            border: 1px solid rgba(255,255,255,0.4);
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+            letter-spacing: 0.25em;
+            padding: 12px 40px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #title-start:hover {
+            border-color: rgba(255,255,255,0.9);
+            color: #fff;
+        }
+        #title-pc-note {
+            font-size: 0.88rem;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.25);
+            text-align: center;
+        }
+
+        /* ── 人物認識ボックス ── */
+        .detect-box {
+            position: absolute;
+            border: 2px solid rgba(255,255,255,0.75);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.15), inset 0 0 0 1px rgba(255,255,255,0.08);
+            pointer-events: none;
+            z-index: 140;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            
+        }
+        .detect-box.visible { opacity: 1; }
+
+        /* 四隅の角だけ強調 */
+        .detect-box::before, .detect-box::after {
+            content: '';
+            position: absolute;
+            width: 12px; height: 12px;
+            border-color: rgba(255,255,255,0.95);
+            border-style: solid;
+        }
+        .detect-box::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .detect-box::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        /* 残り2角はspanで */
+        .detect-box .corner-tr {
+            position: absolute; top: -1px; right: -1px;
+            width: 12px; height: 12px;
+            border-top: 2px solid rgba(255,255,255,0.95);
+            border-right: 2px solid rgba(255,255,255,0.95);
+        }
+        .detect-box .corner-bl {
+            position: absolute; bottom: -1px; left: -1px;
+            width: 12px; height: 12px;
+            border-bottom: 2px solid rgba(255,255,255,0.95);
+            border-left: 2px solid rgba(255,255,255,0.95);
+        }
+
+        /* セリフラベル */
+        .detect-label {
+            position: absolute;
+            top: -4.2em;
+            left: 0;
+            white-space: nowrap;
+            font-size: 1.0rem;
+            letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.9);
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+            line-height: 1.8;
+        }
+
+        /* CAPTURED バッジ */
+        .detect-captured {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.55rem;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.45);
+            vertical-align: middle;
+            font-family: monospace;
+        }
+
+        /* スキャンライン（横に流れる線） */
+        .detect-box .scan-line {
+            position: absolute;
+            left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            animation: scan 2.4s ease-in-out infinite;
+        }
+        @keyframes scan {
+            0%   { top: 0%;   opacity: 0; }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* ── ポラロイドアルバム ── */
+        #album-strip {
+            position: fixed;
+            bottom: 88px; left: 20px;
+            display: flex; flex-direction: column-reverse;
+            gap: 0px;
+            z-index: 300;
+            pointer-events: none;
+        }
+        .polaroid {
+            width: 90px;
+            background: #f5f0e8;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.6);
+            cursor: pointer;
+            pointer-events: all;
+            transform-origin: bottom center;
+            animation: polaroid-drop 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+            position: relative;
+            margin-bottom: -60px;
+        }
+        .polaroid:last-child { margin-bottom: 0; }
+        @keyframes polaroid-drop {
+            from { transform: translateY(-30px) rotate(0deg); opacity: 0; }
+            to   { opacity: 1; }
+        }
+        .polaroid:nth-child(odd)  { transform: rotate(-2deg); }
+        .polaroid:nth-child(even) { transform: rotate(2deg); }
+        .polaroid:hover { transform: rotate(0deg) scale(1.08) translateY(-8px); z-index: 10; transition: transform 0.2s; }
+        .polaroid-img {
+            width: 100%; aspect-ratio: 1;
+            background: #222; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .polaroid-img video {
+            width: 100%; height: 100%; object-fit: cover;
+            pointer-events: none;
+        }
+        .polaroid-label {
+            padding: 6px 6px 10px;
+            font-size: 0.5rem;
+            color: #555;
+            text-align: center;
+            letter-spacing: 0.05em;
+            line-height: 1.4;
+            font-family: 'Georgia', serif;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .polaroid-new {
+            position: absolute;
+            top: 4px; right: 4px;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #e05540;
+            box-shadow: 0 0 4px #e05540;
+        }
+
+        /* ── エンディング画面 ── */
+        #ending-screen {
+            position: fixed; inset: 0;
+            background: #000;
+            display: none;
+            flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 20px;
+            z-index: 800;
+            opacity: 0;
+            transition: opacity 1.2s ease;
+        }
+        #ending-screen.show { display: flex; }
+        #ending-screen.fade-in { opacity: 1; }
+        #ending-title {
+            font-size: 1.4rem;
+            letter-spacing: 0.35em;
+            color: rgba(255,255,255,0.85);
+            font-weight: normal;
+        }
+        .credit-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.28em;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 8px;
+        }
+        .credit-name {
+            font-size: 1.0rem;
+            letter-spacing: 0.3em;
+            color: rgba(255,255,255,0.72);
+            line-height: 2.4;
+        }
+        #ending-sub {
+            font-size: 0.72rem;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.3);
+            text-align: center;
+        }
+        #ending-close {
+            margin-top: 12px;
+            background: none;
+            border: 1px solid rgba(255,255,255,0.28);
+            color: rgba(255,255,255,0.55);
+            font-size: 0.75rem;
+            letter-spacing: 0.22em;
+            padding: 10px 34px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #ending-close:hover { border-color: rgba(255,255,255,0.75); color: #fff; }
+
+        /* ── キーボードヒント ── */
+        #kb-hint {
+            position: absolute;
+            bottom: 22px;
+            left: calc(50% + 36px);
+            font-size: 0.58rem;
+            letter-spacing: 0.14em;
+            color: rgba(255,255,255,0.28);
+            pointer-events: none;
+            z-index: 201;
+            text-align: left;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<!-- タイトル画面 -->
+<div id="title-screen">
+    <div id="title-logo">嘘シャニマス聖地</div>
+    <div id="title-sub">
+        シャッターを切って、<br>
+        彼女たちの物語を見つけよう。
+    </div>
+    <button id="title-start" onclick="startGame()">フォトモードを起動する</button>
+    <button id="title-tawaimo-btn" onclick="startTawaimo()" style="
+        display:none; background:none;
+        border:1px solid rgba(255,255,255,0.22);
+        color:rgba(255,255,255,0.45); font-size:0.78rem;
+        letter-spacing:0.22em; padding:10px 32px; cursor:pointer;
+        transition:all 0.2s; margin-top:-16px;
+    ">他愛もない話</button>
+    <div id="title-pc-note">
+        PC推奨 / 横向き推奨<br>
+        Space: 撮影 &nbsp; ← →: 移動
+    </div>
+    <a href="javascript:void(0)" onclick="window.open('https://example.com','_blank')" style="
+        font-size:0.62rem; letter-spacing:0.14em;
+        color:rgba(255,255,255,0.28); text-decoration:underline; cursor:pointer;
+    ">動画版はこちら</a>
+    <div style="
+        position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+        font-size:0.52rem; letter-spacing:0.1em; color:rgba(255,255,255,0.16);
+        text-align:center; white-space:nowrap;
+    ">本作はアイドルマスターシャイニーカラーズの二次創作です。© BANDAI NAMCO Entertainment Inc.</div>
+</div>
+
+<div id="stage"></div>
+<div id="album-strip"></div>
+<div id="detect-layer" style="position:absolute;inset:0;pointer-events:none;z-index:140;"></div>
+
+<div id="ui-overlay">
+
+    <!-- ヴィネット -->
+    <div id="vignette"></div>
+
+    <!-- 十字クロス -->
+    <div id="crosshair"></div>
+
+    <!-- 四隅ブラケット -->
+    <div class="corner top-left"></div>
+    <div class="corner top-right"></div>
+    <div class="corner bottom-left"></div>
+    <div class="corner bottom-right"></div>
+
+    <!-- 上部HUD -->
+    <div id="hud-top">
+        <div class="hud-left">
+            <div class="hud-rec">
+                <div class="hud-rec-dot"></div>
+                REC
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">SHUTTER</span>
+                <span class="hud-val">1/283</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">ISO</span>
+                <span class="hud-val">412</span>
+            </div>
+        </div>
+        <div class="hud-center">
+            <div class="hud-item">
+                <span class="hud-label">LENS</span>
+                <span class="hud-val">  35mm  f/4.5</span>
+            </div>
+        </div>
+        <div class="hud-right">
+            <div class="hud-item">
+                <span class="hud-label">SHOTS</span>
+                <span class="hud-val"><span id="shot-num">0</span><span style="opacity:0.38"> / 3</span></span>
+            </div>
+            <div id="battery">
+                <div class="battery-bar"></div>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">MODE</span>
+                <span class="hud-val">A</span>
+            </div>
+            <div class="hud-item" id="hud-time">
+                <span class="hud-label">TIME</span>
+                <span class="hud-val" id="hud-time-val">--:--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下部HUD -->
+    <div id="hud-bottom">
+        <div class="hud-left">
+            <div class="hud-item">
+                <span class="hud-label">EV</span>
+                <div id="exposure-bar"></div>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">WB</span>
+                <span class="hud-val">AWB</span>
+            </div>
+        </div>
+        <div class="hud-right">
+            <div class="hud-item">
+                <span class="hud-label">FORMAT</span>
+                <span class="hud-val">RAW+J</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">CARD</span>
+                <span class="hud-val" id="hud-shots">-- shots</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<button class="nav-btn prev" onclick="app.move(-1)">＜</button>
+<button class="nav-btn next" onclick="app.move(1)">＞</button>
+
+<div id="shutter-btn" onclick="app.capture()"></div>
+
+<div id="caption">
+    <div id="caption-inner">
+        <div id="caption-name"></div>
+        <div id="caption-text"></div>
+    </div>
+</div>
+
+<div id="kb-hint">Space : 撮影<br>← → : 移動</div>
+
+<div id="popup" onclick="app.close()">
+    <div id="card" onclick="event.stopPropagation()">
+        <div id="video-container" style="width:100%; aspect-ratio:16/9;"></div>
+        <div style="padding:30px; color:#fff; text-align:center;">
+            <div id="p-name" style="font-size:1.4rem; letter-spacing:0.1em;"></div>
+            <div id="p-desc" style="font-size:0.9rem; color:#888; margin-top:10px;"></div>
+        </div>
+        <div style="text-align:center; padding-bottom:24px;">
+        <button onclick="app.close()" style="
+            background:none; border:1px solid rgba(255,255,255,0.4);
+            color:rgba(255,255,255,0.7); font-size:0.8rem;
+            letter-spacing:0.2em; padding:10px 40px; cursor:pointer;
+        ">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<!-- エンディング画面 -->
+<div id="ending-screen">
+    <div id="ending-title">FILM COMPLETE</div>
+    <div style="text-align:center;">
+        <div class="credit-label">CREATED BY</div>
+        <div class="credit-name">タヤマ</div>
+        <div class="credit-name">和歌山</div>
+        <div class="credit-name">さなだ</div>
+    </div>
+    <div id="ending-sub">ありがとうございました。</div>
+    <button id="ending-close" onclick="closeEnding()">[ タイトルに戻る ]</button>
+</div>
+
+<script>
+const spots = [
+    // ★ video: mp4ファイル名
+    // ★ detect: 認識ボックスの位置とセリフ
+    //    left/top: 画面左上からの位置(%)  width/height: サイズ(%)
+    { name: "『ここは確か、霧子と出会った...。』", video: "scene02.mov", vId: "kTgRkGkTw74", desc: "yuukoku_Pの作品。", 
+      /*caption: { speaker: "霧子", line: "こんにちは…また、会えたね" },*/
+      detect: { left: 28, top: 48, width: 20, height: 78, speaker: "幽谷霧子", line: "こんにちは…また、会えたね" , color: "#d9f2ff"} },
+    { name: "『放クラのみんなに見せてあげたいわ！』", video: "scene03.mov", vId: "U3c24lYxDxs", desc: "ナッツPの作品。", 
+      /*caption: { speaker: "夏葉", line: "あら、いい眺めじゃない!" },*/
+      detect: { left: 55, top: 40, width: 18, height: 60, speaker: "有栖川夏葉", line: "あら、いい眺めじゃない!" , color: "#90e667"} },
+    { name: "『めぐりめぐるる』", video: "scene04.mov", vId: "lBkcJVf56WQ", desc: "はちみーの作品", 
+      /*caption: { speaker: "めぐる", line: "深呼吸、深呼吸!" },*/
+      detect: { left: 30, top: 38, width: 7, height: 30, speaker: "八宮めぐる", line: "深呼吸、深呼吸!" , color: "#ffe012"} },
+];
+
+// ── スリングショット遷移パラメータ ──
+const PULLBACK   = 2.5;   // 逆方向への引き量（vw）
+const PULLBACK_T = 90;    // 引きのduration (ms)
+const PAN_T      = 160;   // 高速パンのduration (ms)
+const SETTLE_T   = 120;   // 着地・微バウンスのduration (ms)
+const BOUNCE     = 0.8;   // 着地後のオーバーシュート量（vw）
+const TOTAL_SPOTS = 3;    // ★ 全スポット数
+
+class StandardApp {
+    constructor() {
+        this.index = 0;
+        this.isMoving = false;
+        this.visitedIndices = new Set([0]);
+        this.capturedSpots = new Set(); // 撮影済みスポット
+        this.init();
+    }
+
+    init() {
+        const stage = document.getElementById('stage');
+        // スロットは左・中・右 の3枚固定（中が現在表示）
+        for (let i = 0; i < 3; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'video-slot';
+            const vid = document.createElement('video');
+            vid.autoplay = true;
+            vid.loop = true;
+            vid.muted = true;
+            vid.playsInline = true;
+            vid.src = spots[0].video; // 初期は全スロットに最初の動画を仮セット
+            slot.appendChild(vid);
+            stage.appendChild(slot);
+        }
+        // 中スロット（インデックス1）だけ正式に再生
+        this._playSlot(1, 0);
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' || e.key === 'd') this.move(1);
+            if (e.key === 'ArrowLeft'  || e.key === 'a') this.move(-1);
+            if (e.key === ' ') { e.preventDefault(); this.capture(); }
+            if (e.key === 'Escape') this.close();
+        });
+    }
+
+    // ── 現在以外からランダムに1枚選ぶ（未訪問優先） ──
+    pickRandom() {
+        const unvisited = spots
+            .map((_, i) => i)
+            .filter(i => i !== this.index && !this.visitedIndices.has(i));
+        if (unvisited.length > 0) {
+            return unvisited[Math.floor(Math.random() * unvisited.length)];
+        }
+        // 全部見たらリセット
+        this.visitedIndices.clear();
+        this.visitedIndices.add(this.index);
+        const others = spots.map((_, i) => i).filter(i => i !== this.index);
+        return others[Math.floor(Math.random() * others.length)];
+    }
+
+    // ── スリングショット遷移 ──
+    async move(dir) {
+        if (this.isMoving) return;
+        this.isMoving = true;
+
+        const stage = document.getElementById('stage');
+        const slides = stage.querySelectorAll('.photo-section');
+
+        // 「進む先のスロット」= 現在スロットの隣（dir方向）
+        // スロットは 0,1,2 の3枚で固定。現在は常にスロット1に居座る設計にする。
+        // → 毎回「スロット1が現在、スロット(1+dir)が次」として差し替える。
+
+        const CUR  = 1;           // 現在は常にスロット1
+        const NEXT = 1 + dir;     // 0 or 2
+
+        // 次スロットに今回表示する画像をセット
+        const nextSpotIdx = this.pickRandom();
+        this._loadSlot(NEXT, nextSpotIdx);
+
+        // 現在スロット(1)に合わせてステージをリセット（transition無し）
+        this._setTransition(stage, 'none');
+        stage.style.transform = `translateX(${-CUR * 100}vw)`;
+
+        // 1フレーム待ってtransitionリセットを確定させる
+        await this._wait(16);
+
+        const currentX = -CUR * 100;
+        const targetX  = -NEXT * 100;
+
+        // ─ フェーズ1: 逆方向に引く ─
+        this._setTransition(stage, `transform ${PULLBACK_T}ms cubic-bezier(0.25, 0, 0.5, 1)`);
+        stage.style.transform = `translateX(${currentX + dir * -PULLBACK}vw)`;
+        this._setCaption(false);
+        this._hideDetect();
+        await this._wait(PULLBACK_T);
+
+        // ─ フェーズ2: 高速パン ─
+        this._setTransition(stage, `transform ${PAN_T}ms cubic-bezier(0.4, 0, 1, 1)`);
+        stage.style.transform = `translateX(${targetX - dir * BOUNCE}vw)`;
+        await this._wait(PAN_T);
+
+        // ─ フェーズ3: 着地バウンス ─
+        this._setTransition(stage, `transform ${SETTLE_T}ms cubic-bezier(0.2, 0.8, 0.4, 1)`);
+        stage.style.transform = `translateX(${targetX}vw)`;
+        await this._wait(SETTLE_T);
+
+        // ── 着地後: 現在スロットを次の画像に差し替えてスロット1に戻す ──
+        this._setTransition(stage, 'none');
+        this._playSlot(CUR, nextSpotIdx);
+        stage.style.transform = `translateX(${-CUR * 100}vw)`;
+
+        this.index = nextSpotIdx;
+        this.visitedIndices.add(nextSpotIdx);
+        this._updateCaption(nextSpotIdx);
+        this._setCaption(true);
+        this._showDetect(nextSpotIdx);
+        this.isMoving = false;
+    }
+
+    capture() {
+        if (this.isMoving || document.getElementById('popup').style.display === 'flex') return;
+        const flash = document.getElementById('flash');
+        flash.style.opacity = 1;
+        setTimeout(() => {
+            flash.style.opacity = 0;
+            // 撮影済みに追加してラベル更新
+            this.capturedSpots.add(this.index);
+            this._updateDetectLabel(this.index);
+            this.open();
+        }, 100);
+    }
+
+    open(spotIdx) {
+        const s = spots[spotIdx !== undefined ? spotIdx : this.index];
+        document.getElementById('p-name').innerText   = s.name;
+        document.getElementById('p-desc').innerText   = s.desc;
+        document.getElementById('video-container').innerHTML =
+            `<iframe width="100%" height="100%"
+                src="https://www.youtube.com/embed/${s.vId}?autoplay=1&origin=${location.origin}"
+                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+        document.getElementById('popup').style.display = 'flex';
+    }
+
+    close() {
+        document.getElementById('popup').style.display = 'none';
+        document.getElementById('video-container').innerHTML = '';
+    }
+
+    _addPolaroid(spotIdx) {
+        const s = spots[spotIdx];
+        const strip = document.getElementById('album-strip');
+        // 撮影済みに追加してラベル更新
+        this.capturedSpots.add(spotIdx);
+        this._updateDetectLabel(spotIdx);
+
+        // 同じスポットが既にあれば「既撮影」をハイライトするだけ
+        const existing = strip.querySelector(`[data-spot="${spotIdx}"]`);
+        if (existing) {
+            existing.style.transform = 'rotate(0deg) scale(1.12) translateY(-12px)';
+            setTimeout(() => {
+                existing.style.transform = existing.dataset.rot;
+            }, 600);
+            return;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'polaroid';
+        card.dataset.spot = spotIdx;
+        const rot = (Math.random() - 0.5) * 6;
+        card.dataset.rot = `rotate(${rot}deg)`;
+        card.style.transform = `rotate(${rot}deg)`;
+
+        // サムネ：動画の最初のフレームをvideoで表示
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'polaroid-img';
+        const vid = document.createElement('video');
+        vid.src = s.video;
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.currentTime = 0.5;
+        imgDiv.appendChild(vid);
+
+        const label = document.createElement('div');
+        label.className = 'polaroid-label';
+        label.textContent = s.detect ? s.detect.speaker : s.name;
+
+        const dot = document.createElement('div');
+        dot.className = 'polaroid-new';
+
+        card.appendChild(dot);
+        card.appendChild(imgDiv);
+        card.appendChild(label);
+
+        card.onclick = () => this.open(spotIdx);
+        strip.appendChild(card);
+
+        // 新着ドットを3秒後に消す
+        setTimeout(() => dot.remove(), 3000);
+    }
+
+    // ── ユーティリティ ──
+    _setTransition(el, val) { el.style.transition = val; }
+    _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // スロットに動画をセットして再生（着地後に呼ぶ）
+    _playSlot(slotIdx, spotIdx) {
+        const slots = document.querySelectorAll('.video-slot');
+        const vid = slots[slotIdx].querySelector('video');
+        vid.src = spots[spotIdx].video;
+        vid.load();
+        vid.play().catch(() => {});
+    }
+
+    // スロットに動画をセットするだけ（パン前のプリロード）
+    _loadSlot(slotIdx, spotIdx) {
+        const slots = document.querySelectorAll('.video-slot');
+        const vid = slots[slotIdx].querySelector('video');
+        vid.src = spots[spotIdx].video;
+        vid.load();
+        // パン中は再生しておく（着地時にすでに動いている状態にする）
+        vid.play().catch(() => {});
+    }
+
+    _updateCaption(spotIdx) {
+        const c = spots[spotIdx].caption;
+        document.getElementById('caption-name').textContent = c ? c.speaker : '';
+        document.getElementById('caption-text').textContent = c ? c.line    : '';
+    }
+
+    _showDetect(spotIdx) {
+        const layer = document.getElementById('detect-layer');
+        layer.innerHTML = '';
+        
+        const s = spots[spotIdx]; 
+        const d = s.detect;
+        if (!d) return;
+
+        const box = document.createElement('div');
+        box.className = 'detect-box';
+        box.style.left   = d.left   + '%';
+        box.style.top    = d.top    + '%';
+        box.style.width  = d.width  + '%';
+        box.style.height = d.height + '%';
+        
+        const c = d.color || 'rgba(255,255,255,0.75)';
+        box.style.borderColor = c;
+        box.style.boxShadow = `0 0 0 1px ${c}30, inset 0 0 0 1px ${c}15`;
+        box.style.transition = 'none';  
+
+        // テンプレートリテラル（バッククォート）でHTMLを構築
+        box.innerHTML = `
+            <img src="${s.image}" style="position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:500%; height:auto; pointer-events:none; z-index:-1; left:-30%; bottom:-120%;">
+            <span class="corner-tr"></span>
+            <span class="corner-bl"></span>
+            <div class="scan-line"></div>
+            <div class="detect-label">${d.speaker}${this.capturedSpots.has(spotIdx) ? '<span class="detect-captured">CAPTURED</span>' : ''}<br>${d.line}</div>
+        `;
+        layer.appendChild(box);
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                box.classList.add('visible');
+            });
+        });
+    }
+
+    _updateDetectLabel(spotIdx) {
+        // 現在表示中のdetect-labelにCAPTUREDを追加
+        const label = document.querySelector('.detect-label');
+        if (!label) return;
+        const d = spots[spotIdx].detect;
+        if (!d) return;
+        label.innerHTML = `${d.speaker}<span class="detect-captured">CAPTURED</span><br>${d.line}`;
+    }
+
+    _hideDetect() {
+        const layer = document.getElementById('detect-layer');
+        const box = layer.querySelector('.detect-box');
+        if (box) {
+            box.classList.remove('visible');
+        }
+    }
+    _updateShotCounter() {
+        const el = document.getElementById('shot-num');
+        if (el) el.textContent = this.capturedSpots.size;
+    }
+
+    _setCaption(visible) {
+        const caption = document.getElementById('caption');
+        if (caption) caption.classList.toggle('hidden', !visible);
+    }
+}
+
+const app = new StandardApp();
+app._updateCaption(0);
+app._setCaption(true);
+app._showDetect(0);
+
+// 時計更新
+function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2,'0');
+    const m = String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('hud-time-val').textContent = h + ':' + m;
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+function showEnding() {
+    const ending = document.getElementById('ending-screen');
+    ending.classList.add('show');
+    requestAnimationFrame(() => requestAnimationFrame(() => ending.classList.add('fade-in')));
+}
+
+function closeEnding() {
+    const ending = document.getElementById('ending-screen');
+    ending.classList.remove('fade-in');
+    setTimeout(() => {
+        ending.classList.remove('show');
+        const title = document.getElementById('title-screen');
+        title.style.opacity = '0';
+        title.classList.remove('hidden');
+        title.classList.remove('fade-out');
+        requestAnimationFrame(() => {
+            title.style.transition = 'opacity 0.8s ease';
+            title.style.opacity = '1';
+        });
+        document.getElementById('title-tawaimo-btn').style.display = 'inline-block';
+    }, 1200);
+}
+
+function startTawaimo() {
+    alert('「他愛もない話」篇は準備中です');
+}
+
+function startGame() {
+    const title = document.getElementById('title-screen');
+    title.classList.add('fade-out');
+    setTimeout(() => title.classList.add('hidden'), 800);
+}
+</script>
+</body>
+</html>
