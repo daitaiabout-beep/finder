@@ -365,6 +365,17 @@
             line-height: 1.8;
         }
 
+        /* CAPTURED バッジ */
+        .detect-captured {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.55rem;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.45);
+            vertical-align: middle;
+            font-family: monospace;
+        }
+
         /* スキャンライン（横に流れる線） */
         .detect-box .scan-line {
             position: absolute;
@@ -438,6 +449,57 @@
             box-shadow: 0 0 4px #e05540;
         }
 
+        /* ── エンディング画面 ── */
+        #ending-screen {
+            position: fixed; inset: 0;
+            background: #000;
+            display: none;
+            flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 20px;
+            z-index: 800;
+            opacity: 0;
+            transition: opacity 1.2s ease;
+        }
+        #ending-screen.show { display: flex; }
+        #ending-screen.fade-in { opacity: 1; }
+        #ending-title {
+            font-size: 1.4rem;
+            letter-spacing: 0.35em;
+            color: rgba(255,255,255,0.85);
+            font-weight: normal;
+        }
+        .credit-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.28em;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 8px;
+        }
+        .credit-name {
+            font-size: 1.0rem;
+            letter-spacing: 0.3em;
+            color: rgba(255,255,255,0.72);
+            line-height: 2.4;
+        }
+        #ending-sub {
+            font-size: 0.72rem;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.3);
+            text-align: center;
+        }
+        #ending-close {
+            margin-top: 12px;
+            background: none;
+            border: 1px solid rgba(255,255,255,0.28);
+            color: rgba(255,255,255,0.55);
+            font-size: 0.75rem;
+            letter-spacing: 0.22em;
+            padding: 10px 34px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #ending-close:hover { border-color: rgba(255,255,255,0.75); color: #fff; }
+
         /* ── キーボードヒント ── */
         #kb-hint {
             position: absolute;
@@ -465,10 +527,26 @@
         彼女たちの物語を見つけよう。
     </div>
     <button id="title-start" onclick="startGame()">フォトモードを起動する</button>
+    <button id="title-tawaimo-btn" onclick="startTawaimo()" style="
+        display:none; background:none;
+        border:1px solid rgba(255,255,255,0.22);
+        color:rgba(255,255,255,0.45); font-size:0.78rem;
+        letter-spacing:0.22em; padding:10px 32px; cursor:pointer;
+        transition:all 0.2s; margin-top:-16px;
+    ">他愛もない話</button>
     <div id="title-pc-note">
         PC推奨 / 横向き推奨<br>
         Space: 撮影 &nbsp; ← →: 移動
     </div>
+    <a href="javascript:void(0)" onclick="window.open('https://example.com','_blank')" style="
+        font-size:0.62rem; letter-spacing:0.14em;
+        color:rgba(255,255,255,0.28); text-decoration:underline; cursor:pointer;
+    ">動画版はこちら</a>
+    <div style="
+        position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+        font-size:0.52rem; letter-spacing:0.1em; color:rgba(255,255,255,0.16);
+        text-align:center; white-space:nowrap;
+    ">本作はアイドルマスターシャイニーカラーズの二次創作です。© BANDAI NAMCO Entertainment Inc.</div>
 </div>
 
 <div id="stage"></div>
@@ -512,6 +590,10 @@
             </div>
         </div>
         <div class="hud-right">
+            <div class="hud-item">
+                <span class="hud-label">SHOTS</span>
+                <span class="hud-val"><span id="shot-num">0</span><span style="opacity:0.38"> / 3</span></span>
+            </div>
             <div id="battery">
                 <div class="battery-bar"></div>
             </div>
@@ -582,6 +664,19 @@
     </div>
 </div>
 
+<!-- エンディング画面 -->
+<div id="ending-screen">
+    <div id="ending-title">FILM COMPLETE</div>
+    <div style="text-align:center;">
+        <div class="credit-label">CREATED BY</div>
+        <div class="credit-name">タヤマ</div>
+        <div class="credit-name">和歌山</div>
+        <div class="credit-name">さなだ</div>
+    </div>
+    <div id="ending-sub">ありがとうございました。</div>
+    <button id="ending-close" onclick="closeEnding()">[ タイトルに戻る ]</button>
+</div>
+
 <script>
 const spots = [
     // ★ video: mp4ファイル名
@@ -604,12 +699,14 @@ const PULLBACK_T = 90;    // 引きのduration (ms)
 const PAN_T      = 160;   // 高速パンのduration (ms)
 const SETTLE_T   = 120;   // 着地・微バウンスのduration (ms)
 const BOUNCE     = 0.8;   // 着地後のオーバーシュート量（vw）
+const TOTAL_SPOTS = 3;    // ★ 全スポット数
 
 class StandardApp {
     constructor() {
         this.index = 0;
         this.isMoving = false;
-        this.visitedIndices = new Set([0]); // 既出スライドを記録
+        this.visitedIndices = new Set([0]);
+        this.capturedSpots = new Set(); // 撮影済みスポット
         this.init();
     }
 
@@ -636,7 +733,6 @@ class StandardApp {
             if (e.key === 'ArrowLeft'  || e.key === 'a') this.move(-1);
             if (e.key === ' ') { e.preventDefault(); this.capture(); }
             if (e.key === 'Escape') this.close();
-             if (e.key === 'Escape') this.close();
         });
     }
 
@@ -720,6 +816,9 @@ class StandardApp {
         flash.style.opacity = 1;
         setTimeout(() => {
             flash.style.opacity = 0;
+            // 撮影済みに追加してラベル更新
+            this.capturedSpots.add(this.index);
+            this._updateDetectLabel(this.index);
             this.open();
         }, 100);
     }
@@ -744,6 +843,9 @@ class StandardApp {
     _addPolaroid(spotIdx) {
         const s = spots[spotIdx];
         const strip = document.getElementById('album-strip');
+        // 撮影済みに追加してラベル更新
+        this.capturedSpots.add(spotIdx);
+        this._updateDetectLabel(spotIdx);
 
         // 同じスポットが既にあれば「既撮影」をハイライトするだけ
         const existing = strip.querySelector(`[data-spot="${spotIdx}"]`);
@@ -845,7 +947,7 @@ class StandardApp {
             <span class="corner-tr"></span>
             <span class="corner-bl"></span>
             <div class="scan-line"></div>
-            <div class="detect-label">${d.speaker}<br>${d.line}</div>
+            <div class="detect-label">${d.speaker}${this.capturedSpots.has(spotIdx) ? '<span class="detect-captured">CAPTURED</span>' : ''}<br>${d.line}</div>
         `;
         layer.appendChild(box);
 
@@ -856,6 +958,15 @@ class StandardApp {
         });
     }
 
+    _updateDetectLabel(spotIdx) {
+        // 現在表示中のdetect-labelにCAPTUREDを追加
+        const label = document.querySelector('.detect-label');
+        if (!label) return;
+        const d = spots[spotIdx].detect;
+        if (!d) return;
+        label.innerHTML = `${d.speaker}<span class="detect-captured">CAPTURED</span><br>${d.line}`;
+    }
+
     _hideDetect() {
         const layer = document.getElementById('detect-layer');
         const box = layer.querySelector('.detect-box');
@@ -863,6 +974,11 @@ class StandardApp {
             box.classList.remove('visible');
         }
     }
+    _updateShotCounter() {
+        const el = document.getElementById('shot-num');
+        if (el) el.textContent = this.capturedSpots.size;
+    }
+
     _setCaption(visible) {
         const caption = document.getElementById('caption');
         if (caption) caption.classList.toggle('hidden', !visible);
@@ -883,6 +999,33 @@ function updateClock() {
 }
 updateClock();
 setInterval(updateClock, 10000);
+
+function showEnding() {
+    const ending = document.getElementById('ending-screen');
+    ending.classList.add('show');
+    requestAnimationFrame(() => requestAnimationFrame(() => ending.classList.add('fade-in')));
+}
+
+function closeEnding() {
+    const ending = document.getElementById('ending-screen');
+    ending.classList.remove('fade-in');
+    setTimeout(() => {
+        ending.classList.remove('show');
+        const title = document.getElementById('title-screen');
+        title.style.opacity = '0';
+        title.classList.remove('hidden');
+        title.classList.remove('fade-out');
+        requestAnimationFrame(() => {
+            title.style.transition = 'opacity 0.8s ease';
+            title.style.opacity = '1';
+        });
+        document.getElementById('title-tawaimo-btn').style.display = 'inline-block';
+    }, 1200);
+}
+
+function startTawaimo() {
+    alert('「他愛もない話」篇は準備中です');
+}
 
 function startGame() {
     const title = document.getElementById('title-screen');
